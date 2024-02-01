@@ -33,19 +33,25 @@ type (
 		tm propagation.TextMapPropagator
 	}
 
+	responsePropagatorsHolder struct {
+		tm propagation.TextMapPropagator
+	}
+
 	meterProviderHolder struct {
 		mp metric.MeterProvider
 	}
 )
 
 var (
-	globalTracer        = defaultTracerValue()
-	globalPropagators   = defaultPropagatorsValue()
-	globalMeterProvider = defaultMeterProvider()
+	globalTracer              = defaultTracerValue()
+	globalPropagators         = defaultPropagatorsValue()
+	globalResponsePropagators = defaultResponsePropagatorsValue()
+	globalMeterProvider       = defaultMeterProvider()
 
-	delegateTraceOnce             sync.Once
-	delegateTextMapPropagatorOnce sync.Once
-	delegateMeterOnce             sync.Once
+	delegateTraceOnce                     sync.Once
+	delegateTextMapPropagatorOnce         sync.Once
+	delegateTextMapResponsePropagatorOnce sync.Once
+	delegateMeterOnce                     sync.Once
 )
 
 // TracerProvider is the internal implementation for global.TracerProvider.
@@ -82,6 +88,11 @@ func TextMapPropagator() propagation.TextMapPropagator {
 	return globalPropagators.Load().(propagatorsHolder).tm
 }
 
+// TextMapResponsePropagator is the internal implementation for global.TextMapResponsePropagator.
+func TextMapResponsePropagator() propagation.TextMapPropagator {
+	return globalResponsePropagators.Load().(responsePropagatorsHolder).tm
+}
+
 // SetTextMapPropagator is the internal implementation for global.SetTextMapPropagator.
 func SetTextMapPropagator(p propagation.TextMapPropagator) {
 	current := TextMapPropagator()
@@ -107,6 +118,33 @@ func SetTextMapPropagator(p propagation.TextMapPropagator) {
 	})
 	// Return p when subsequent calls to TextMapPropagator are made.
 	globalPropagators.Store(propagatorsHolder{tm: p})
+}
+
+// SetTextMapResponsePropagator is the internal implementation for global.SetTextMapResponsePropagator.
+func SetTextMapResponsePropagator(p propagation.TextMapPropagator) {
+	current := TextMapResponsePropagator()
+
+	if _, cOk := current.(*textMapPropagator); cOk {
+		if _, pOk := p.(*textMapPropagator); pOk && current == p {
+			// Do not assign the default delegating TextMapPropagator to
+			// delegate to itself.
+			Error(
+				errors.New("no delegate configured in text map response propagator"),
+				"Setting text map response propagator to it's current value. No delegate will be configured",
+			)
+			return
+		}
+	}
+
+	// For the textMapPropagator already returned by TextMapPropagator
+	// delegate to p.
+	delegateTextMapResponsePropagatorOnce.Do(func() {
+		if def, ok := current.(*textMapPropagator); ok {
+			def.SetDelegate(p)
+		}
+	})
+	// Return p when subsequent calls to TextMapResponsePropagator are made.
+	globalResponsePropagators.Store(responsePropagatorsHolder{tm: p})
 }
 
 // MeterProvider is the internal implementation for global.MeterProvider.
@@ -146,6 +184,12 @@ func defaultTracerValue() *atomic.Value {
 func defaultPropagatorsValue() *atomic.Value {
 	v := &atomic.Value{}
 	v.Store(propagatorsHolder{tm: newTextMapPropagator()})
+	return v
+}
+
+func defaultResponsePropagatorsValue() *atomic.Value {
+	v := &atomic.Value{}
+	v.Store(responsePropagatorsHolder{tm: newTextMapPropagator()})
 	return v
 }
 

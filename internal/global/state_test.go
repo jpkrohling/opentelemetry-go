@@ -135,6 +135,55 @@ func TestSetTextMapPropagator(t *testing.T) {
 	})
 }
 
+func TestSetTextMapResponsePropagator(t *testing.T) {
+	t.Run("Set With default is a noop", func(t *testing.T) {
+		ResetForTest(t)
+		SetTextMapResponsePropagator(TextMapPropagator())
+
+		tmp, ok := TextMapResponsePropagator().(*textMapPropagator)
+		if !ok {
+			t.Fatal("Global TextMapResponsePropagator should be the default propagator")
+		}
+
+		if tmp.delegate != nil {
+			t.Fatal("TextMapResponsePropagator should not delegate when setting itself")
+		}
+	})
+
+	t.Run("First Set() should replace the delegate", func(t *testing.T) {
+		ResetForTest(t)
+
+		SetTextMapResponsePropagator(propagation.TraceContext{})
+
+		_, ok := TextMapResponsePropagator().(*textMapPropagator)
+		if ok {
+			t.Fatal("Global TextMapResponsePropagator was not changed")
+		}
+	})
+
+	t.Run("Set() should delegate existing propagators", func(t *testing.T) {
+		ResetForTest(t)
+
+		p := TextMapResponsePropagator()
+		SetTextMapResponsePropagator(propagation.TraceContext{})
+
+		np := p.(*textMapPropagator)
+
+		if np.delegate == nil {
+			t.Fatal("The delegated TextMapResponsePropagators should have a delegate")
+		}
+	})
+
+	t.Run("non-comparable types should not panic", func(t *testing.T) {
+		ResetForTest(t)
+
+		// A composite TextMapPropagator is not comparable.
+		prop := propagation.NewCompositeTextMapPropagator(propagation.TraceContext{})
+		SetTextMapResponsePropagator(prop)
+		assert.NotPanics(t, func() { SetTextMapResponsePropagator(prop) })
+	})
+}
+
 func TestSetMeterProvider(t *testing.T) {
 	t.Run("Set With default is a noop", func(t *testing.T) {
 		ResetForTest(t)

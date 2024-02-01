@@ -25,7 +25,18 @@ func GetTextMapPropagator() propagation.TextMapPropagator {
 	return global.TextMapPropagator()
 }
 
+// GetTextMapResponsePropagator returns the global TextMapResponsePropagator. If none has been
+// set, a No-Op TextMapPropagator is returned.
+func GetTextMapResponsePropagator() propagation.TextMapPropagator {
+	return global.TextMapResponsePropagator()
+}
+
 // SetTextMapPropagator sets propagator as the global TextMapPropagator.
 func SetTextMapPropagator(propagator propagation.TextMapPropagator) {
 	global.SetTextMapPropagator(propagator)
+}
+
+// SetTextMapResponsePropagator sets propagator as the global TextMapResponsePropagator.
+func SetTextMapResponsePropagator(propagator propagation.TextMapPropagator) {
+	global.SetTextMapResponsePropagator(propagator)
 }
